@@ -54,6 +54,7 @@ def _create_feature_names():
         "gyro_xz",
         "gyro_yz",
         "acc_gyro_magnitude",
+        
     ]
     for pair in corr_pairs:
         feature_names.append(f"correlation_{pair}")

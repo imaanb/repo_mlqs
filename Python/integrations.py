@@ -60,6 +60,11 @@ def load_gym_dataset(path: Path):
                 acc_file = session_path / "Accelerometer.csv"
                 gyro_file = session_path / "Gyroscope.csv"
                 labels_file = session_path / "labels.csv"
+                gravity_file = session_path / "Gravity.csv"
+                orientation_file = session_path / "Orientation.csv"
+                magnetometer_file = session_path / "Magnetometer.csv"  
+                 
+
 
                 if not acc_file.exists() or not gyro_file.exists():
                     continue
@@ -71,15 +76,28 @@ def load_gym_dataset(path: Path):
                     columns={"x": "gyro_x", "y": "gyro_y", "z": "gyro_z"}
                 )
 
-                acc = acc.sort_values("time").reset_index(drop=True)
-                gyro = gyro.sort_values("time").reset_index(drop=True)
-
-                # Merge accelerometer + gyroscope on nearest timestamp (50 ms tolerance)
-                merged = pd.merge_asof(
-                    acc, gyro, on="time",
-                    direction="nearest", tolerance=50_000_000,
+                gravity = pd.read_csv(gravity_file)[["time", "x", "y", "z"]].rename(
+                    columns={"x": "grav_x", "y": "grav_y", "z": "grav_z"}
                 )
-                merged = merged.dropna(subset=["gyro_x", "gyro_y", "gyro_z"])
+
+                orientation = pd.read_csv(orientation_file)[["time", "qz", "qy", "qx", "qw", "roll", "pitch", "yaw"]].rename(
+                    columns={"qz": "orient_qz", "qy": "orient_qy", "qx": "orient_qx", "qw": "orient_qw", "roll": "orient_roll", "pitch": "orient_pitch", "yaw": "orient_yaw"}
+                )
+
+                magnetometer = pd.read_csv(magnetometer_file)[["time", "x", "y", "z"]].rename(
+                    columns={"x": "mag_x", "y": "mag_y", "z": "mag_z"}
+                )
+
+                acc    = acc.sort_values("time").reset_index(drop=True)
+                gyro   = gyro.sort_values("time").reset_index(drop=True)
+                gravity     = gravity.sort_values("time").reset_index(drop=True)
+                orientation = orientation.sort_values("time").reset_index(drop=True)
+                magnetometer = magnetometer.sort_values("time").reset_index(drop=True)
+
+                merged = pd.merge_asof(acc, gyro,         on="time", direction="nearest", tolerance=50_000_000)
+                merged = pd.merge_asof(merged, gravity,   on="time", direction="nearest", tolerance=50_000_000)
+                merged = pd.merge_asof(merged, orientation, on="time", direction="nearest", tolerance=50_000_000)
+                merged = pd.merge_asof(merged, magnetometer, on="time", direction="nearest", tolerance=50_000_000)
 
                 # Clip to labelled exercise range when labels.csv is present
                 if labels_file.exists():
@@ -104,7 +122,9 @@ def load_gym_dataset(path: Path):
 
                 all_data.append(merged[[
                     "time", "acc_x", "acc_y", "acc_z",
-                    "gyro_x", "gyro_y", "gyro_z",
+                    "gyro_x", "gyro_y", "gyro_z", "grav_x", "grav_y", "grav_z",
+                    "orient_qz", "orient_qy", "orient_qx", "orient_qw", "orient_roll", "orient_pitch", "orient_yaw",
+                    "mag_x", "mag_y", "mag_z",
                     "activity_label", "participant", "session", "data_source",
                 ]])
                 session_id += 1
@@ -144,6 +164,15 @@ def _standardize_columns(data):
         "x": "acc_x",
         "y": "acc_y",
         "z": "acc_z",
+        "Grav_X": "grav_x",
+        "Grav_Y": "grav_y",
+        "Grav_Z": "grav_z",
+        "Orient_X": "orient_x",
+        "Orient_Y": "orient_y",
+        "Orient_Z": "orient_z",
+        "Mag_X": "mag_x",
+        "Mag_Y": "mag_y",
+        "Mag_Z": "mag_z",
     }
     return data.rename(columns=column_mappings)
 
@@ -157,6 +186,7 @@ def load_field_dataset(path: Path):
 
     Returns a DataFrame with columns:
         time, acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z,
+        grav_x, grav_y, grav_z, orient_x, orient_y, orient_z, mag_x, mag_y, mag_z,
         activity_label, participant, session, protocol, data_source
     """
     all_data = []
