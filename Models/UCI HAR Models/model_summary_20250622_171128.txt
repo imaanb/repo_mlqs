@@ -1,0 +1,38 @@
+Optimized CNN-LSTM Model Summary
+========================================
+
+Training Date: 2025-06-22 17:11:28
+Model Type: cnn-lstm
+Expected Accuracy: 0.9050
+Actual Accuracy: 0.8860
+Accuracy Difference: -0.0190
+
+Best Hyperparameters:
+-------------------------
+  conv_filters        : 32
+  conv_kernel_size    : 5
+  lstm_units          : 32
+  dropout_rate        : 0.4637281608315128
+  learning_rate       : 0.00032927591344236165
+  batch_size          : 16
+  epochs              : 17
+
+Files Generated:
+---------------
+  Model File: models/optimized_cnn_lstm_model_20250622_171128.pkl
+  Metadata: models/model_metadata_20250622_171128.pkl
+  Hyperparameters: models/best_hyperparameters_20250622_171128.json
+  Summary: models/model_summary_20250622_171128.txt
+
+Top 10 Most Important Features:
+-----------------------------------
+   1. body_acc_x_max                : 0.054512
+   2. body_acc_x_std                : 0.052213
+   3. body_acc_x_energy             : 0.049744
+   4. body_acc_x_spectral_energy    : 0.040872
+   5. body_gyro_x_std               : 0.030854
+   6. body_gyro_x_peak_freq         : 0.030302
+   7. body_gyro_z_peak_freq         : 0.028667
+   8. body_gyro_z_std               : 0.025137
+   9. body_acc_y_std                : 0.022764
+  10. body_acc_x_spectral_entropy   : 0.022246

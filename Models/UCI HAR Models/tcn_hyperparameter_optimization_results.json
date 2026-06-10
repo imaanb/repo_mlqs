@@ -1,0 +1,508 @@
+{
+  "tcn": {
+    "test_accuracy": 0.8951476216316223,
+    "val_accuracy": 0.9503738880157471,
+    "accuracy": 0.8951476216316223,
+    "best_params": {
+      "num_filters": 128,
+      "kernel_size": 7,
+      "num_channels": [
+        32,
+        64,
+        128
+      ],
+      "dilations": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "dropout_rate": 0.2512656088373982,
+      "learning_rate": 0.0005762168055965837,
+      "batch_size": 128,
+      "epochs": 50,
+      "use_skip_connections": true,
+      "use_weight_norm": true
+    },
+    "best_score": 0.9564921855926514,
+    "n_trials": 20,
+    "optimization_history": [
+      [
+        0.9048266410827637,
+        {
+          "num_filters": 64,
+          "kernel_size": 9,
+          "num_channels": [
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "dropout_rate": 0.010292247147901223,
+          "learning_rate": 0.008706020878304856,
+          "batch_size": 16,
+          "epochs": 22,
+          "use_skip_connections": true,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.9129843711853027,
+        {
+          "num_filters": 32,
+          "kernel_size": 5,
+          "num_channels": [
+            64,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.08526206184364576,
+          "learning_rate": 0.00013492834268013249,
+          "batch_size": 32,
+          "epochs": 14,
+          "use_skip_connections": true,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.7471107840538025,
+        {
+          "num_filters": 32,
+          "kernel_size": 9,
+          "num_channels": [
+            32,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "dropout_rate": 0.46974947078209456,
+          "learning_rate": 0.006161049539380964,
+          "batch_size": 32,
+          "epochs": 11,
+          "use_skip_connections": false,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.8783140778541565,
+        {
+          "num_filters": 64,
+          "kernel_size": 5,
+          "num_channels": [
+            64,
+            128,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "dropout_rate": 0.4077307142274171,
+          "learning_rate": 0.002592475660475161,
+          "batch_size": 32,
+          "epochs": 14,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.7831407189369202,
+        {
+          "num_filters": 64,
+          "kernel_size": 5,
+          "num_channels": [
+            64,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "dropout_rate": 0.3854835899772805,
+          "learning_rate": 0.0009718319944817398,
+          "batch_size": 16,
+          "epochs": 11,
+          "use_skip_connections": true,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.9340584874153137,
+        {
+          "num_filters": 48,
+          "kernel_size": 5,
+          "num_channels": [
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "dropout_rate": 0.43573029509385885,
+          "learning_rate": 0.004048966222584676,
+          "batch_size": 32,
+          "epochs": 46,
+          "use_skip_connections": true,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.9299796223640442,
+        {
+          "num_filters": 112,
+          "kernel_size": 9,
+          "num_channels": [
+            32,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "dropout_rate": 0.25939531087168305,
+          "learning_rate": 0.0025470526233391183,
+          "batch_size": 32,
+          "epochs": 30,
+          "use_skip_connections": true,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.895309329032898,
+        {
+          "num_filters": 80,
+          "kernel_size": 3,
+          "num_channels": [
+            32,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "dropout_rate": 0.3808098076643588,
+          "learning_rate": 0.00029872741995638395,
+          "batch_size": 16,
+          "epochs": 31,
+          "use_skip_connections": false,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.8919102549552917,
+        {
+          "num_filters": 32,
+          "kernel_size": 7,
+          "num_channels": [
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "dropout_rate": 0.46836499436836726,
+          "learning_rate": 0.00018838307787619773,
+          "batch_size": 64,
+          "epochs": 20,
+          "use_skip_connections": false,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.8280081748962402,
+        {
+          "num_filters": 48,
+          "kernel_size": 3,
+          "num_channels": [
+            32,
+            64
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "dropout_rate": 0.38993777292881193,
+          "learning_rate": 0.0019233720128877185,
+          "batch_size": 64,
+          "epochs": 10,
+          "use_skip_connections": false,
+          "use_weight_norm": false
+        }
+      ],
+      [
+        0.9564921855926514,
+        {
+          "num_filters": 128,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.2512656088373982,
+          "learning_rate": 0.0005762168055965837,
+          "batch_size": 128,
+          "epochs": 50,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9401767253875732,
+        {
+          "num_filters": 128,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.23635700332897436,
+          "learning_rate": 0.0006220849708844905,
+          "batch_size": 128,
+          "epochs": 50,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9510536789894104,
+        {
+          "num_filters": 128,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.20389280151427616,
+          "learning_rate": 0.0006694653933471392,
+          "batch_size": 128,
+          "epochs": 50,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.942216157913208,
+        {
+          "num_filters": 112,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.21488536148659643,
+          "learning_rate": 0.00041694085649859766,
+          "batch_size": 128,
+          "epochs": 41,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9496940970420837,
+        {
+          "num_filters": 128,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.16042508930990865,
+          "learning_rate": 0.0010904046621994217,
+          "batch_size": 128,
+          "epochs": 40,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9524133205413818,
+        {
+          "num_filters": 112,
+          "kernel_size": 7,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.3090162192445695,
+          "learning_rate": 0.0007404558771777036,
+          "batch_size": 128,
+          "epochs": 50,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9292997717857361,
+        {
+          "num_filters": 96,
+          "kernel_size": 9,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.30447914019980227,
+          "learning_rate": 0.00030979085471101594,
+          "batch_size": 128,
+          "epochs": 40,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9401767253875732,
+        {
+          "num_filters": 112,
+          "kernel_size": 7,
+          "num_channels": [
+            64,
+            128,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.32790403811782237,
+          "learning_rate": 0.0015226137361971203,
+          "batch_size": 128,
+          "epochs": 34,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9408565759658813,
+        {
+          "num_filters": 96,
+          "kernel_size": 5,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.15051524666263363,
+          "learning_rate": 0.0004960508445566842,
+          "batch_size": 128,
+          "epochs": 45,
+          "use_skip_connections": false,
+          "use_weight_norm": true
+        }
+      ],
+      [
+        0.9299796223640442,
+        {
+          "num_filters": 96,
+          "kernel_size": 9,
+          "num_channels": [
+            32,
+            64,
+            128
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "dropout_rate": 0.30638261926829774,
+          "learning_rate": 0.0010142481356004282,
+          "batch_size": 128,
+          "epochs": 36,
+          "use_skip_connections": true,
+          "use_weight_norm": true
+        }
+      ]
+    ]
+  }
+}

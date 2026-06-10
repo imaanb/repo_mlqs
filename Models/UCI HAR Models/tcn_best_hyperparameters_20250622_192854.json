@@ -1,0 +1,22 @@
+{
+  "num_filters": 128,
+  "kernel_size": 7,
+  "num_channels": [
+    32,
+    64,
+    128
+  ],
+  "dilations": [
+    1,
+    2,
+    4,
+    8,
+    16
+  ],
+  "dropout_rate": 0.2512656088373982,
+  "learning_rate": 0.0005762168055965837,
+  "batch_size": 128,
+  "epochs": 50,
+  "use_skip_connections": true,
+  "use_weight_norm": true
+}

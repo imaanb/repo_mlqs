@@ -1,0 +1,9 @@
+{
+  "tcn": {
+    "test_accuracy": 0.9689034223556519,
+    "val_accuracy": 0.9430605173110962,
+    "accuracy": 0.9689034223556519,
+    "optimization_method": "none",
+    "best_params": "default"
+  }
+}

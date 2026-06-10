@@ -1,0 +1,32 @@
+{
+  "model_type": "tcn",
+  "input_type": "engineered_features",
+  "num_features": 122,
+  "test_accuracy": 0.5415019989013672,
+  "best_hyperparameters": {
+    "num_filters": 80,
+    "kernel_size": 9,
+    "num_channels": [
+      32,
+      64
+    ],
+    "dilations": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "dropout_rate": 0.1855650612108004,
+    "learning_rate": 0.0011267924776378116,
+    "batch_size": 64,
+    "epochs": 36,
+    "use_skip_connections": true,
+    "use_weight_norm": false
+  },
+  "participants": [
+    "Alexis",
+    "David"
+  ],
+  "activities": [
+    

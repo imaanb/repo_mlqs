@@ -1,0 +1,9 @@
+{
+  "conv_filters": 32,
+  "conv_kernel_size": 5,
+  "lstm_units": 32,
+  "dropout_rate": 0.4637281608315128,
+  "learning_rate": 0.00032927591344236165,
+  "batch_size": 16,
+  "epochs": 17
+}
