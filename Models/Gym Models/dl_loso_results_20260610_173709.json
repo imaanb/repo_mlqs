@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "tcn": {
+      "per_fold": [
+        0.386547811993517,
+        0.1838955386289445
+      ],
+      "mean": 0.28522167531123077
+    },
+    "lstm": {
+      "per_fold": [
+        0.3249594813614263,
+        0.19368879216539717
+      ],
+      "mean": 0.2593241367634117
+    },
+    "cnn_lstm": {
+      "per_fold": [
+        0.21961102106969205,
+        0.383025027203482
+      ],
+      "mean": 0.30131802413658704
+    }
+  },
+  "per_fold": {
+    "imaan": {
+      "tcn": {
+        "accuracy": 0.386547811993517,
+        "epochs_trained": 19,
+        "final_val_accuracy": 0.9927536249160767
+      },
+      "lstm": {
+        "accuracy": 0.3249594813614263,
+        "epochs_trained": 16,
+        "final_val_accuracy": 0.9347826242446899
+      },
+      "cnn_lstm": {
+        "accuracy": 0.21961102106969205,
+        "epochs_trained": 28,
+        "final_val_accuracy": 0.9927536249160767
+      }
+    },
+    "richard": {
+      "tcn": {
+        "accuracy": 0.1838955386289445,
+        "epochs_trained": 21,
+        "final_val_accuracy": 0.9408602118492126
+      },
+      "lstm": {
+        "accuracy": 0.19368879216539717,
+        "epochs_trained": 29,
+        "final_val_accuracy": 0.9516128897666931
+      },
+      "cnn_lstm": {
+        "accuracy": 0.383025027203482,
+        "epochs_trained": 27,
+        "final_val_accuracy": 0.9569892287254333
+      }
+    }
+  }
+}
