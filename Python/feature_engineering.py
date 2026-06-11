@@ -32,7 +32,7 @@ def _create_feature_names():
         "spectral_entropy",
     ]
 
-    for sensor in ["acc", "gyro"]:
+    for sensor in ["acc", "grav", "gyro", "magnet"]:
         for axis in ["x", "y", "z"]:
             for feat in time_features:
                 feature_names.append(f"{sensor}_{axis}_{feat}")
@@ -41,7 +41,7 @@ def _create_feature_names():
 
     # Magnitude features
     mag_features = ["mean", "std", "max", "min", "skew", "kurtosis"]
-    for sensor in ["acc", "gyro"]:
+    for sensor in ["acc", "grav", "gyro", "magnet"]:
         for feat in mag_features:
             feature_names.append(f"{sensor}_magnitude_{feat}")
 
@@ -53,8 +53,18 @@ def _create_feature_names():
         "gyro_xy",
         "gyro_xz",
         "gyro_yz",
+        "grav_xy",
+        "grav_xz",
+        "grav_yz",
+        "magnet_xy",
+        "magnet_xz",
+        "magnet_yz",
         "acc_gyro_magnitude",
-        
+        "acc_grav_magnitude",
+        "acc_magnet_magnitude",
+        "gyro_grav_magnitude",
+        "gyro_magnet_magnitude",
+        "grav_magnet_magnitude",
     ]
     for pair in corr_pairs:
         feature_names.append(f"correlation_{pair}")
@@ -80,7 +90,7 @@ def engineer_robust_features(windowed_data, sampling_rate):
         window_features = []
 
         # Length-invariant features
-        for sensor_type in ["acc", "gyro"]:
+        for sensor_type in ["acc", "grav", "gyro", "magnet"]:
             for axis in ["x", "y", "z"]:
                 signal = window[f"{sensor_type}_{axis}"]
 
@@ -158,8 +168,14 @@ def engineer_robust_features(windowed_data, sampling_rate):
         gyro_magnitude = np.sqrt(
             window["gyro_x"] ** 2 + window["gyro_y"] ** 2 + window["gyro_z"] ** 2
         )
+        grav_magnitude = np.sqrt(
+            window["grav_x"] ** 2 + window["grav_y"] ** 2 + window["grav_z"] ** 2
+        )
+        magnet_magnitude = np.sqrt(
+            window["magnet_x"] ** 2 + window["magnet_y"] ** 2 + window["magnet_z"] ** 2
+        )
 
-        for magnitude in [acc_magnitude, gyro_magnitude]:
+        for magnitude in [acc_magnitude, gyro_magnitude, grav_magnitude, magnet_magnitude]:
             window_features.extend(
                 [
                     np.mean(magnitude),
@@ -180,11 +196,28 @@ def engineer_robust_features(windowed_data, sampling_rate):
                 np.corrcoef(window["gyro_x"], window["gyro_y"])[0, 1],
                 np.corrcoef(window["gyro_x"], window["gyro_z"])[0, 1],
                 np.corrcoef(window["gyro_y"], window["gyro_z"])[0, 1],
+                np.corrcoef(window["grav_x"], window["grav_y"])[0, 1],
+                np.corrcoef(window["grav_x"], window["grav_z"])[0, 1],
+                np.corrcoef(window["grav_y"], window["grav_z"])[0, 1],
+                np.corrcoef(window["magnet_x"], window["magnet_y"])[0, 1],
+                np.corrcoef(window["magnet_x"], window["magnet_z"])[0, 1],
+                np.corrcoef(window["magnet_y"], window["magnet_z"])[0, 1],
                 np.corrcoef(acc_magnitude, gyro_magnitude)[0, 1],
+                np.corrcoef(acc_magnitude, grav_magnitude)[0, 1],
+                np.corrcoef(acc_magnitude, magnet_magnitude)[0, 1],
+                np.corrcoef(gyro_magnitude, grav_magnitude)[0, 1],
+                np.corrcoef(gyro_magnitude, magnet_magnitude)[0, 1],
+                np.corrcoef(grav_magnitude, magnet_magnitude)[0, 1],
+                np.corrcoef(acc_magnitude, gyro_magnitude)[0, 1],
+                np.corrcoef(acc_magnitude, grav_magnitude)[0, 1],
+                np.corrcoef(acc_magnitude, magnet_magnitude)[0, 1],
+                np.corrcoef(gyro_magnitude, grav_magnitude)[0, 1],
+                np.corrcoef(gyro_magnitude, magnet_magnitude)[0, 1],
+                np.corrcoef(grav_magnitude, magnet_magnitude)[0, 1],
             ]
             window_features.extend(correlations)
         except:
-            window_features.extend([0] * 7)
+            window_features.extend([0] * 24)
 
         # Handle NaN/Inf values
         window_features = [
