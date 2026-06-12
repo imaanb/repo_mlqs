@@ -85,7 +85,7 @@ def load_gym_dataset(path: Path):
                 )
 
                 magnetometer = pd.read_csv(magnetometer_file)[["time", "x", "y", "z"]].rename(
-                    columns={"x": "mag_x", "y": "mag_y", "z": "mag_z"}
+                    columns={"x": "magnet_x", "y": "magnet_y", "z": "magnet_z"}
                 )
 
                 acc    = acc.sort_values("time").reset_index(drop=True)
@@ -98,6 +98,24 @@ def load_gym_dataset(path: Path):
                 merged = pd.merge_asof(merged, gravity,   on="time", direction="nearest", tolerance=50_000_000)
                 merged = pd.merge_asof(merged, orientation, on="time", direction="nearest", tolerance=50_000_000)
                 merged = pd.merge_asof(merged, magnetometer, on="time", direction="nearest", tolerance=50_000_000)
+
+                # Gravity-aligned decomposition
+                g_vec = merged[["grav_x", "grav_y", "grav_z"]].values
+                g_mag = np.linalg.norm(g_vec, axis=1, keepdims=True)
+                g_mag = np.where(g_mag < 1e-9, 1e-9, g_mag)
+                g_unit = g_vec / g_mag
+
+                acc_vec = merged[["acc_x", "acc_y", "acc_z"]].values
+                acc_vert = (acc_vec * g_unit).sum(axis=1)
+                acc_vert_vec = acc_vert[:, None] * g_unit
+                merged["acc_vert"] = acc_vert
+                merged["acc_horiz"] = np.linalg.norm(acc_vec - acc_vert_vec, axis=1)
+
+                gyro_vec = merged[["gyro_x", "gyro_y", "gyro_z"]].values
+                gyro_vert = (gyro_vec * g_unit).sum(axis=1)
+                gyro_vert_vec = gyro_vert[:, None] * g_unit
+                merged["gyro_vert"] = gyro_vert
+                merged["gyro_horiz"] = np.linalg.norm(gyro_vec - gyro_vert_vec, axis=1)
 
                 # Clip to labelled exercise range when labels.csv is present
                 if labels_file.exists():
@@ -124,7 +142,8 @@ def load_gym_dataset(path: Path):
                     "time", "acc_x", "acc_y", "acc_z",
                     "gyro_x", "gyro_y", "gyro_z", "grav_x", "grav_y", "grav_z",
                     "orient_qz", "orient_qy", "orient_qx", "orient_qw", "orient_roll", "orient_pitch", "orient_yaw",
-                    "mag_x", "mag_y", "mag_z",
+                    "magnet_x", "magnet_y", "magnet_z",
+                    "acc_vert", "acc_horiz", "gyro_vert", "gyro_horiz",
                     "activity_label", "participant", "session", "data_source",
                 ]])
                 session_id += 1

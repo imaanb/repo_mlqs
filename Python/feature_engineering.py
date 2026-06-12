@@ -45,6 +45,13 @@ def _create_feature_names():
         for feat in mag_features:
             feature_names.append(f"{sensor}_magnitude_{feat}")
 
+    # Gravity-aligned signal features
+    for sig in ["acc_vert", "acc_horiz", "gyro_vert", "gyro_horiz"]:
+        for feat in time_features:
+            feature_names.append(f"{sig}_{feat}")
+        for feat in freq_features:
+            feature_names.append(f"{sig}_{feat}")
+
     # Correlation features
     corr_pairs = [
         "acc_xy",
@@ -68,7 +75,7 @@ def _create_feature_names():
     ]
     for pair in corr_pairs:
         feature_names.append(f"correlation_{pair}")
-    
+
     return feature_names
 
 
@@ -92,7 +99,11 @@ def engineer_robust_features(windowed_data, sampling_rate):
         # Length-invariant features
         for sensor_type in ["acc", "grav", "gyro", "magnet"]:
             for axis in ["x", "y", "z"]:
-                signal = window[f"{sensor_type}_{axis}"]
+                key = f"{sensor_type}_{axis}"
+                if key not in window:
+                    window_features.extend([0] * 21)  # 15 time-domain + 6 freq-domain
+                    continue
+                signal = window[key]
 
                 # Time domain features
                 window_features.extend(
@@ -168,12 +179,18 @@ def engineer_robust_features(windowed_data, sampling_rate):
         gyro_magnitude = np.sqrt(
             window["gyro_x"] ** 2 + window["gyro_y"] ** 2 + window["gyro_z"] ** 2
         )
-        grav_magnitude = np.sqrt(
-            window["grav_x"] ** 2 + window["grav_y"] ** 2 + window["grav_z"] ** 2
-        )
-        magnet_magnitude = np.sqrt(
-            window["magnet_x"] ** 2 + window["magnet_y"] ** 2 + window["magnet_z"] ** 2
-        )
+        if "grav_x" in window:
+            grav_magnitude = np.sqrt(
+                window["grav_x"] ** 2 + window["grav_y"] ** 2 + window["grav_z"] ** 2
+            )
+        else:
+            grav_magnitude = np.zeros_like(acc_magnitude)
+        if "magnet_x" in window:
+            magnet_magnitude = np.sqrt(
+                window["magnet_x"] ** 2 + window["magnet_y"] ** 2 + window["magnet_z"] ** 2
+            )
+        else:
+            magnet_magnitude = np.zeros_like(acc_magnitude)
 
         for magnitude in [acc_magnitude, gyro_magnitude, grav_magnitude, magnet_magnitude]:
             window_features.extend(
@@ -186,6 +203,64 @@ def engineer_robust_features(windowed_data, sampling_rate):
                     stats.kurtosis(magnitude),
                 ]
             )
+
+        # Gravity-aligned signal features (orientation-invariant across devices)
+        for sig_name in ["acc_vert", "acc_horiz", "gyro_vert", "gyro_horiz"]:
+            if sig_name not in window:
+                window_features.extend([0] * 21)
+                continue
+            signal = window[sig_name]
+            window_features.extend(
+                [
+                    np.mean(signal),
+                    np.std(signal),
+                    np.median(signal),
+                    np.max(signal),
+                    np.min(signal),
+                    stats.skew(signal),
+                    stats.kurtosis(signal),
+                    np.percentile(signal, 25),
+                    np.percentile(signal, 75),
+                    np.percentile(signal, 90),
+                    np.percentile(signal, 10),
+                    np.mean(np.abs(signal)),
+                    np.sqrt(np.mean(signal**2)),
+                    np.max(signal) - np.min(signal),
+                    np.sum(np.diff(np.sign(signal)) != 0) / len(signal),
+                ]
+            )
+            fft_vals = np.fft.fft(signal)
+            fft_magnitude = np.abs(fft_vals[: len(fft_vals) // 2])
+            freqs = np.fft.fftfreq(len(signal), 1 / sampling_rate)[: len(fft_vals) // 2]
+            total_power = np.sum(fft_magnitude**2)
+            if total_power > 0:
+                normalized_fft = fft_magnitude**2 / total_power
+                spectral_centroid = (
+                    np.sum(freqs * normalized_fft) / np.sum(normalized_fft)
+                    if np.sum(normalized_fft) > 0 else 0
+                )
+                spectral_spread = (
+                    np.sqrt(
+                        np.sum(((freqs - spectral_centroid) ** 2) * normalized_fft)
+                        / np.sum(normalized_fft)
+                    )
+                    if np.sum(normalized_fft) > 0 else 0
+                )
+                low_band = np.sum(normalized_fft[freqs < 5])
+                mid_band = np.sum(normalized_fft[(freqs >= 5) & (freqs < 15)])
+                high_band = np.sum(normalized_fft[freqs >= 15])
+                window_features.extend(
+                    [
+                        spectral_centroid,
+                        spectral_spread,
+                        low_band,
+                        mid_band,
+                        high_band,
+                        stats.entropy(normalized_fft + 1e-10),
+                    ]
+                )
+            else:
+                window_features.extend([0] * 6)
 
         # Correlation features (length-independent)
         try:
@@ -208,16 +283,10 @@ def engineer_robust_features(windowed_data, sampling_rate):
                 np.corrcoef(gyro_magnitude, grav_magnitude)[0, 1],
                 np.corrcoef(gyro_magnitude, magnet_magnitude)[0, 1],
                 np.corrcoef(grav_magnitude, magnet_magnitude)[0, 1],
-                np.corrcoef(acc_magnitude, gyro_magnitude)[0, 1],
-                np.corrcoef(acc_magnitude, grav_magnitude)[0, 1],
-                np.corrcoef(acc_magnitude, magnet_magnitude)[0, 1],
-                np.corrcoef(gyro_magnitude, grav_magnitude)[0, 1],
-                np.corrcoef(gyro_magnitude, magnet_magnitude)[0, 1],
-                np.corrcoef(grav_magnitude, magnet_magnitude)[0, 1],
             ]
             window_features.extend(correlations)
         except:
-            window_features.extend([0] * 24)
+            window_features.extend([0] * 18)
 
         # Handle NaN/Inf values
         window_features = [

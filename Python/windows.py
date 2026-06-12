@@ -19,7 +19,7 @@ def _create_window_dict(window, participant, session, window_id):
         if len(window["activity_label"].mode()) > 0
         else window["activity_label"].iloc[0]
     )
-    return {
+    d = {
         "window_id": window_id,
         "participant": participant,
         "session": session,
@@ -35,6 +35,12 @@ def _create_window_dict(window, participant, session, window_id):
         ),
         "window_length": len(window),
     }
+    for col in ["grav_x", "grav_y", "grav_z",
+                "magnet_x", "magnet_y", "magnet_z",
+                "acc_vert", "acc_horiz", "gyro_vert", "gyro_horiz"]:
+        if col in window.columns:
+            d[col] = window[col].values
+    return d
 
 
 def create_adaptive_windows(

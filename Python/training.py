@@ -239,8 +239,66 @@ def train_with_validation(
             "accuracy": float(acc),
         }
 
+    elif validation_strategy == "mixed_loso":
+        # Session-based k-fold where each fold has sessions from BOTH participants
+        # in both train and test, so the model always sees some data from each device.
+        k = 5
+        participants_arr = np.array([m["participant"] for m in metadata])
+        sessions_arr = np.array([m["session"] for m in metadata])
+
+        # Assign fold IDs by round-robining sessions within each participant
+        fold_map = {}
+        for p in sorted(set(participants_arr)):
+            p_sessions = sorted(set(sessions_arr[participants_arr == p]))
+            for i, s in enumerate(p_sessions):
+                fold_map[(p, s)] = i % k
+
+        window_folds = np.array([fold_map[(p, s)] for p, s in zip(participants_arr, sessions_arr)])
+
+        per_fold_acc = {}
+        all_true, all_pred = [], []
+        last_model, last_scaler = None, None
+
+        for fold_idx in range(k):
+            test_mask = window_folds == fold_idx
+            train_mask = ~test_mask
+            if not test_mask.any() or not train_mask.any():
+                continue
+
+            X_tr, X_te = features[train_mask], features[test_mask]
+            y_tr, y_te = labels[train_mask], labels[test_mask]
+            test_parts = sorted(set(participants_arr[test_mask]))
+
+            print(f"\n  Mixed-LOSO fold {fold_idx + 1}/{k}: "
+                  f"participants in test={test_parts}  "
+                  f"(train={len(y_tr)}, test={len(y_te)})")
+
+            model, scaler, X_te_s = _scale_and_train(X_tr, y_tr, X_te, model_cls, model_kwargs)
+            acc, y_pred = _evaluate(
+                model, X_te_s, y_te,
+                label=f"{model_type.upper()} fold={fold_idx + 1}",
+                validation_strategy=validation_strategy,
+            )
+            per_fold_acc[f"fold_{fold_idx + 1}"] = float(acc)
+            all_true.extend(y_te.tolist())
+            all_pred.extend(y_pred.tolist())
+            last_model, last_scaler = model, scaler
+
+        mean_acc = float(np.mean(list(per_fold_acc.values())))
+        print(f"\n  Mixed-LOSO Mean Accuracy ({model_type.upper()}): {mean_acc:.4f}")
+        print(f"  Per-fold: {per_fold_acc}")
+
+        return last_model, last_scaler, {
+            "validation_strategy": "mixed_loso",
+            "model_type": model_type,
+            "per_fold_accuracy": per_fold_acc,
+            "mean_accuracy": mean_acc,
+            "all_true": all_true,
+            "all_pred": all_pred,
+        }
+
     else:
         raise ValueError(
             f"Unknown validation_strategy '{validation_strategy}'. "
-            "Choose: 'loso', 'stratified', 'time_based', 'source_based'."
+            "Choose: 'loso', 'mixed_loso', 'stratified', 'time_based', 'source_based'."
         )

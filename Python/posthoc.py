@@ -48,6 +48,7 @@ def _require_optuna():
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.utils.class_weight import compute_class_weight
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -101,10 +102,14 @@ class ML4QSFlexiblePipeline:
 
     def prepare_sequences(self, windowed_data):
         """
-        Convert list of window dicts to (N, window_size, 6) numpy array.
-        Channels: acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z.
+        Convert list of window dicts to (N, window_size, C) numpy array.
+        Channels: acc_x/y/z, gyro_x/y/z, plus gravity-aligned acc_vert,
+        acc_horiz, gyro_vert, gyro_horiz when available (orientation-invariant).
         """
-        channels = ["acc_x", "acc_y", "acc_z", "gyro_x", "gyro_y", "gyro_z"]
+        base_channels = ["acc_x", "acc_y", "acc_z", "gyro_x", "gyro_y", "gyro_z"]
+        aligned_channels = ["acc_vert", "acc_horiz", "gyro_vert", "gyro_horiz"]
+        has_aligned = all(ch in windowed_data[0] for ch in aligned_channels) if windowed_data else False
+        channels = base_channels + aligned_channels if has_aligned else base_channels
         sequences, labels, metadata = [], [], []
 
         for w in windowed_data:
@@ -238,6 +243,7 @@ class ML4QSFlexiblePipeline:
         lr=0.001,
         epochs=50,
         batch_size=32,
+        class_weight=None,
     ):
         keras = _require_keras()
         model.compile(
@@ -247,8 +253,8 @@ class ML4QSFlexiblePipeline:
         )
         callbacks = [
             keras.callbacks.EarlyStopping(
-                monitor="val_accuracy", patience=10,
-                restore_best_weights=True, mode="max", verbose=0,
+                monitor="val_loss", patience=15,
+                restore_best_weights=True, mode="min", verbose=0,
             ),
             keras.callbacks.ReduceLROnPlateau(
                 monitor="val_loss", factor=0.5, patience=5,
@@ -261,6 +267,7 @@ class ML4QSFlexiblePipeline:
             epochs=epochs,
             batch_size=batch_size,
             callbacks=callbacks,
+            class_weight=class_weight,
             verbose=1,
         )
         return history
@@ -327,8 +334,9 @@ class ML4QSFlexiblePipeline:
 
     def evaluate_loso(
         self,
-        sequences, labels, participants,
+        sequences, labels, participants, sessions,
         model_types=("tcn", "lstm", "cnn_lstm"),
+        k=5,
         epochs=50,
         batch_size=32,
         optimize=False,
@@ -336,63 +344,79 @@ class ML4QSFlexiblePipeline:
         plots_dir="./Plots",
     ):
         """
-        Run Leave-One-Subject-Out cross-validation for the listed model types.
-        Returns dict: {participant: {model_type: {accuracy, history, y_true, y_pred}}}
+        Mixed session-based k-fold evaluation.
+        Sessions are round-robined across folds within each participant,
+        so every fold's test set contains data from both participants.
+        Returns dict: {fold_idx: {model_type: {accuracy, history, y_true, y_pred}}}
         """
         os.makedirs(save_dir, exist_ok=True)
         os.makedirs(plots_dir, exist_ok=True)
 
-        unique_participants = sorted(set(participants))
         unique_labels = sorted(np.unique(labels))
         num_classes = len(unique_labels)
-        print(f"\nLOSO participants: {unique_participants}")
+        unique_participants = sorted(set(participants))
+        print(f"\nMixed-LOSO ({k} folds), participants: {unique_participants}")
         print(f"Classes ({num_classes}): {unique_labels}")
 
         participants_arr = np.array(participants)
-        all_results = {}
+        sessions_arr = np.array(sessions)
 
-        for test_p in unique_participants:
+        # Assign fold IDs by round-robining sessions within each participant
+        fold_map = {}
+        for p in unique_participants:
+            p_sessions = sorted(set(sessions_arr[participants_arr == p]))
+            for i, s in enumerate(p_sessions):
+                fold_map[(p, s)] = i % k
+        window_folds = np.array([fold_map[(p, s)] for p, s in zip(participants_arr, sessions_arr)])
+
+        all_results = {}
+        le = LabelEncoder()
+        le.fit(unique_labels)
+
+        for fold_idx in range(k):
+            test_mask = window_folds == fold_idx
+            train_mask = ~test_mask
+            if not test_mask.any() or not train_mask.any():
+                continue
+
+            test_parts = sorted(set(participants_arr[test_mask]))
             print(f"\n{'='*50}")
-            print(f"LOSO fold: TEST participant = {test_p}")
+            print(f"Mixed-LOSO fold {fold_idx + 1}/{k}: test participants={test_parts}")
             print(f"{'='*50}")
 
-            train_mask = participants_arr != test_p
-            test_mask = ~train_mask
-
             X_train = sequences[train_mask]
-            X_test = sequences[test_mask]
+            X_test  = sequences[test_mask]
             y_train = labels[train_mask]
-            y_test = labels[test_mask]
-
+            y_test  = labels[test_mask]
             print(f"Train samples: {len(X_train)}, Test samples: {len(X_test)}")
 
-            # Scale: fit on train only
             n_tr, T, C = X_train.shape
             scaler = StandardScaler()
             X_train_s = scaler.fit_transform(X_train.reshape(-1, C)).reshape(n_tr, T, C)
-            X_test_s = scaler.transform(X_test.reshape(-1, C)).reshape(len(X_test), T, C)
+            X_test_s  = scaler.transform(X_test.reshape(-1, C)).reshape(len(X_test), T, C)
 
-            # Encode labels
-            le = LabelEncoder()
-            le.fit(unique_labels)
             y_tr_enc = le.transform(y_train)
             y_te_enc = le.transform(y_test)
 
-            # Validation split from training data (15%)
             X_tr, X_val, y_tr, y_val = train_test_split(
                 X_train_s, y_tr_enc,
                 test_size=0.15, stratify=y_tr_enc, random_state=42,
             )
             keras = _require_keras()
-            y_tr_cat = keras.utils.to_categorical(y_tr, num_classes)
+            y_tr_cat  = keras.utils.to_categorical(y_tr,  num_classes)
             y_val_cat = keras.utils.to_categorical(y_val, num_classes)
-            y_te_cat = keras.utils.to_categorical(y_te_enc, num_classes)
+            y_te_cat  = keras.utils.to_categorical(y_te_enc, num_classes)
+
+            # Class weights to counter majority-class collapse
+            cw_values = compute_class_weight("balanced", classes=np.arange(num_classes), y=y_tr)
+            class_weight = {i: w for i, w in enumerate(cw_values)}
+            print(f"  Class weights: { {le.classes_[i]: f'{w:.2f}' for i, w in class_weight.items()} }")
 
             input_shape = (T, C)
             fold_results = {}
 
             for mt in model_types:
-                print(f"\nTraining {mt.upper()} (test={test_p})...")
+                print(f"\nTraining {mt.upper()} (fold {fold_idx + 1})...")
 
                 if mt == "tcn":
                     if optimize:
@@ -437,16 +461,16 @@ class ML4QSFlexiblePipeline:
                 history = self._compile_and_train(
                     model, X_tr, y_tr_cat, X_val, y_val_cat,
                     lr=lr, epochs=epochs, batch_size=bs,
+                    class_weight=class_weight,
                 )
 
-                # Evaluate
                 y_pred_proba = model.predict(X_test_s, verbose=0)
-                y_pred_enc = np.argmax(y_pred_proba, axis=1)
+                y_pred_enc   = np.argmax(y_pred_proba, axis=1)
                 y_pred = le.inverse_transform(y_pred_enc)
                 y_true = le.inverse_transform(y_te_enc)
 
                 acc = accuracy_score(y_true, y_pred)
-                print(f"  {mt.upper()} Test Accuracy (test={test_p}): {acc:.4f}")
+                print(f"  {mt.upper()} Test Accuracy (fold {fold_idx + 1}): {acc:.4f}")
 
                 fold_results[mt] = {
                     "accuracy": float(acc),
@@ -460,37 +484,34 @@ class ML4QSFlexiblePipeline:
                     },
                 }
 
-                # Plot training history
                 self._plot_training_history(
-                    history, model_name=f"field_{mt}_{test_p}",
-                    save_path=os.path.join(plots_dir, f"field_{mt}_training_history_{test_p}.png"),
+                    history, model_name=f"field_{mt}_fold{fold_idx + 1}",
+                    save_path=os.path.join(plots_dir, f"field_{mt}_training_history_fold{fold_idx + 1}.png"),
                 )
 
-            all_results[test_p] = fold_results
+            all_results[f"fold_{fold_idx + 1}"] = fold_results
 
-        # Aggregate and print LOSO summary
+        # Aggregate summary
         print("\n" + "=" * 60)
-        print("LOSO Summary")
+        print("Mixed-LOSO Summary")
         print("=" * 60)
         summary = {}
         for mt in model_types:
-            accs = [all_results[p][mt]["accuracy"] for p in unique_participants]
+            accs = [all_results[fk][mt]["accuracy"] for fk in all_results]
             mean_acc = float(np.mean(accs))
             summary[mt] = {"per_fold": accs, "mean": mean_acc}
-            fold_str = ", ".join(f"{p}={a:.4f}" for p, a in zip(unique_participants, accs))
-            print(f"  {mt.upper():10s}: {fold_str}  ->  Mean = {mean_acc:.4f}")
+            print(f"  {mt.upper():10s}: per_fold={[f'{a:.4f}' for a in accs]}  ->  Mean = {mean_acc:.4f}")
 
         # Combined confusion matrices
         for mt in model_types:
-            y_true_all = []
-            y_pred_all = []
-            for p in unique_participants:
-                y_true_all.extend(all_results[p][mt]["y_true"])
-                y_pred_all.extend(all_results[p][mt]["y_pred"])
+            y_true_all, y_pred_all = [], []
+            for fk in all_results:
+                y_true_all.extend(all_results[fk][mt]["y_true"])
+                y_pred_all.extend(all_results[fk][mt]["y_pred"])
             self._plot_confusion_matrix(
                 y_true_all, y_pred_all,
-                title=f"Field Data - {mt.upper()} (LOSO)",
-                save_path=os.path.join(plots_dir, f"field_confusion_matrix_{mt}.png"),
+                title=f"Gym Data - {mt.upper()} (Mixed-LOSO)",
+                save_path=os.path.join(plots_dir, f"gym_confusion_matrix_{mt}.png"),
             )
 
         return all_results, summary
@@ -565,7 +586,7 @@ def get_training_summary(rf_model=None, rf_scaler=None):
     # 1. Load data
     # ------------------------------------------------------------------
     print("\nLoading Gym Movements Dataset...")
-    raw_data = load_gym_dataset(Path("./Datasets/Gym Movements Dataset"))
+    raw_data = load_gym_dataset(Path("./Datasets/cropped"))
     print(f"Total samples: {len(raw_data)}")
     print(f"Participants: {sorted(raw_data['participant'].unique())}")
     print(f"Activities: {sorted(raw_data['activity_label'].unique())}")
@@ -605,7 +626,8 @@ def get_training_summary(rf_model=None, rf_scaler=None):
     print("\nPreparing raw sequences for DL models...")
     sequences, labels, metadata = pipeline.prepare_sequences(windowed_data)
     participants = [m["participant"] for m in metadata]
-    print(f"Sequences shape: {sequences.shape}")
+    sessions     = [m["session"]     for m in metadata]
+    print(f"Sequences shape: {sequences.shape}  (channels include gravity-aligned: {sequences.shape[2] > 6})")
 
     # ------------------------------------------------------------------
     # 5. LOSO DL training
@@ -615,8 +637,9 @@ def get_training_summary(rf_model=None, rf_scaler=None):
     os.makedirs("./Plots", exist_ok=True)
 
     all_results, summary = pipeline.evaluate_loso(
-        sequences, labels, participants,
+        sequences, labels, participants, sessions,
         model_types=("tcn", "lstm", "cnn_lstm"),
+        k=5,
         epochs=50,
         batch_size=32,
         optimize=False,   # set True to run Optuna (slow)
@@ -631,10 +654,10 @@ def get_training_summary(rf_model=None, rf_scaler=None):
     results_path = f"./Models/Gym Models/dl_loso_results_{timestamp}.json"
 
     serializable = {}
-    for participant, fold in all_results.items():
-        serializable[participant] = {}
+    for fold_key, fold in all_results.items():
+        serializable[fold_key] = {}
         for mt, res in fold.items():
-            serializable[participant][mt] = {
+            serializable[fold_key][mt] = {
                 "accuracy": res["accuracy"],
                 "epochs_trained": len(res["history"]["accuracy"]),
                 "final_val_accuracy": res["history"]["val_accuracy"][-1]
