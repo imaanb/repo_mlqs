@@ -281,6 +281,7 @@ def run_classical(
     model_types=("rf", "svm", "gbm"),
     feature_mask=None,
     verbose=True,
+    checkpoint_path=None,
 ):
     """
     Benchmark classical ML models under one evaluation protocol.
@@ -305,7 +306,26 @@ def run_classical(
     X = features[:, feature_mask] if feature_mask is not None else features
     y = labels
 
+    # Load existing checkpoint to resume from
     results = {mt: {"per_fold": [], "y_true": [], "y_pred": []} for mt in model_types}
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        try:
+            with open(checkpoint_path, encoding="utf-8") as fh:
+                saved = json.load(fh)
+            for mt in model_types:
+                if mt in saved:
+                    results[mt] = saved[mt]
+            completed_keys = {
+                (mt, pf["fold"])
+                for mt in model_types
+                for pf in results[mt]["per_fold"]
+            }
+            print(f"  [classical checkpoint] resuming — {len(completed_keys)} (model,fold) pairs already done")
+        except Exception as exc:
+            print(f"  [classical checkpoint] could not load ({exc}); starting fresh")
+            results = {mt: {"per_fold": [], "y_true": [], "y_pred": []} for mt in model_types}
+    else:
+        completed_keys = set()
 
     if strategy == "session_blocked":
         folds_iter  = list(session_blocked_folds(metadata, k=5))
@@ -322,6 +342,10 @@ def run_classical(
         y_tr, y_te = y[train_idx], y[test_idx]
 
         for mt in model_types:
+            if (mt, flabel) in completed_keys:
+                if verbose:
+                    print(f"  [{strategy}] {mt.upper():4s} {flabel}: skipped (checkpoint)")
+                continue
             y_pred, _, _ = _fit_classical(X_tr, y_tr, X_te, mt)
             m = compute_metrics(y_te, y_pred)
             results[mt]["per_fold"].append({"fold": flabel, **m})
@@ -332,6 +356,8 @@ def run_classical(
                       f"macro_f1={m['macro_f1']:.4f}  "
                       f"bal_acc={m['balanced_acc']:.4f}  "
                       f"acc={m['accuracy']:.4f}")
+            if checkpoint_path:
+                _atomic_save_json(results, checkpoint_path)
 
     for mt in model_types:
         fdata = results[mt]["per_fold"]
@@ -475,6 +501,7 @@ def run_dl(
     epochs=50,
     batch_size=32,
     verbose=True,
+    checkpoint_path=None,
 ):
     """
     Benchmark DL models under one evaluation protocol.
@@ -503,7 +530,27 @@ def run_dl(
     le.fit(np.unique(labels))
     num_classes = len(le.classes_)
 
+    # Load existing checkpoint to resume from
     results = {mt: {"per_fold": [], "y_true": [], "y_pred": []} for mt in model_types}
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        try:
+            with open(checkpoint_path, encoding="utf-8") as fh:
+                saved = json.load(fh)
+            for mt in model_types:
+                if mt in saved:
+                    results[mt] = saved[mt]
+            completed_keys = {
+                (mt, pf["fold"])
+                for mt in model_types
+                for pf in results[mt]["per_fold"]
+            }
+            print(f"  [DL checkpoint] resuming — {len(completed_keys)} (model,fold) pairs already done")
+        except Exception as exc:
+            print(f"  [DL checkpoint] could not load ({exc}); starting fresh")
+            results = {mt: {"per_fold": [], "y_true": [], "y_pred": []} for mt in model_types}
+            completed_keys = set()
+    else:
+        completed_keys = set()
 
     if strategy == "session_blocked":
         folds_iter  = list(session_blocked_folds(metadata, k=5))
@@ -518,6 +565,13 @@ def run_dl(
     for (train_idx, test_idx), flabel in zip(folds_iter, fold_labels):
         X_tr_raw, X_te_raw = seqs[train_idx], seqs[test_idx]
         y_tr, y_te         = labels[train_idx], labels[test_idx]
+
+        # Only compute scaler/split once per fold if any model in the fold needs training
+        fold_models_needed = [mt for mt in model_types if (mt, flabel) not in completed_keys]
+        if not fold_models_needed:
+            if verbose:
+                print(f"  [{strategy}] fold {flabel}: all models skipped (checkpoint)")
+            continue
 
         scaler = StandardScaler()
         X_tr_s = scaler.fit_transform(X_tr_raw.reshape(-1, C)).reshape(-1, T, C)
@@ -536,7 +590,7 @@ def run_dl(
         for i in range(num_classes):           # fill any class absent from training fold
             class_weight.setdefault(i, 1.0)
 
-        for mt in model_types:
+        for mt in fold_models_needed:
             model = _build_dl_model(mt, input_shape, num_classes)
             model, _ = _train_pytorch(
                 model, X_tr_f, y_tr_f, X_val, y_val,
@@ -562,6 +616,9 @@ def run_dl(
             del model
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+
+            if checkpoint_path:
+                _atomic_save_json(results, checkpoint_path)
 
     for mt in model_types:
         fdata = results[mt]["per_fold"]
@@ -737,19 +794,40 @@ def plot_ablation(ablation_results, strategy, metric="macro_f1",
     plt.close()
 
 
-def save_results(results_dict, out_path):
-    """Serialise results to JSON (handles numpy scalars/arrays)."""
-    def _convert(obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return obj
+def _json_convert(obj):
+    """JSON serialiser that handles numpy types and NaN→null."""
+    if isinstance(obj, float) and obj != obj:   # NaN
+        return None
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
 
-    with open(out_path, "w") as fh:
-        json.dump(results_dict, fh, default=_convert, indent=2)
+
+def _atomic_save_json(data, path):
+    """Write *data* to *path* atomically (temp file + os.replace)."""
+    import tempfile
+    abs_path = os.path.abspath(path)
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(abs_path), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, default=_json_convert, indent=2)
+        os.replace(tmp, abs_path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def save_results(results_dict, out_path):
+    """Serialise results to JSON atomically."""
+    _atomic_save_json(results_dict, out_path)
     print(f"  Results saved → {out_path}")
 
 
@@ -812,6 +890,9 @@ def run_full_evaluation(
         print(f"{'#' * 72}")
         strat_res = {}
 
+        classical_ckpt = os.path.join(save_dir, f"checkpoint_{strategy}_classical.json")
+        dl_ckpt        = os.path.join(save_dir, f"checkpoint_{strategy}_dl.json")
+
         # ---- Classical benchmark ----------------------------------------
         print(f"\n--- Classical ML Benchmark [{strategy}] ---")
         classical_res = run_classical(
@@ -819,8 +900,12 @@ def run_full_evaluation(
             strategy=strategy,
             model_types=classical_models,
             verbose=verbose,
+            checkpoint_path=classical_ckpt,
         )
         strat_res["classical"] = classical_res
+        # Save partial after classical in case DL crashes
+        all_results[strategy] = strat_res
+        _atomic_save_json(all_results, partial_path)
 
         # ---- DL benchmark -----------------------------------------------
         dl_res = {}
@@ -833,8 +918,12 @@ def run_full_evaluation(
                 epochs=dl_epochs,
                 batch_size=dl_batch_size,
                 verbose=verbose,
+                checkpoint_path=dl_ckpt,
             )
             strat_res["dl"] = dl_res
+            # Save partial after DL in case ablation crashes
+            all_results[strategy] = strat_res
+            _atomic_save_json(all_results, partial_path)
 
         print_benchmark_summary(classical_res, dl_res, strategy)
 
