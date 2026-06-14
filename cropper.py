@@ -250,11 +250,12 @@ def _plot_sensor(
         return
 
     n_axes = len(data_cols)
-    fig, axs = plt.subplots(n_axes, 1, figsize=(13, 2.2 * n_axes),
+    fig, axs = plt.subplots(n_axes, 1, figsize=(13, 2.3 * n_axes),
                              sharex=True, squeeze=False)
+    fig.subplots_adjust(top=0.92)
     fig.suptitle(f"{sensor_name} — consensus crop  "
                  f"[start={med_start:.2f}s, end={med_end:.2f}s]",
-                 fontsize=11, y=1.01)
+                 fontsize=11, y = 1.02)
 
     t_min, t_max = t[0], t[-1]
     palette = ["#4a9eca", "#e8734a", "#5cb85c", "#9b59b6",
